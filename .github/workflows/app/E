@@ -1,0 +1,89 @@
+package com.brayan.tiktokoverlay;
+
+import android.app.*;
+import android.content.Intent;
+import android.graphics.*;
+import android.os.*;
+import android.view.*;
+import android.widget.*;
+
+public class OverlayService extends Service {
+    WindowManager wm;
+    View overlayView;
+    TextView tvSaldo;
+    String saldo = "999999";
+
+    @Override
+    public int onStartCommand(Intent intent, int flags, int startId) {
+        if (intent != null && intent.hasExtra("saldo"))
+            saldo = intent.getStringExtra("saldo");
+
+        startForeground(1, buildNotification());
+        showOverlay();
+        return START_STICKY;
+    }
+
+    void showOverlay() {
+        if (overlayView != null) {
+            wm.removeView(overlayView);
+            overlayView = null;
+        }
+
+        wm = (WindowManager) getSystemService(WINDOW_SERVICE);
+
+        overlayView = new LinearLayout(this) {{
+            setOrientation(LinearLayout.VERTICAL);
+            setBackgroundColor(Color.argb(180, 0, 0, 0));
+            setPadding(24, 16, 24, 16);
+        }};
+
+        tvSaldo = new TextView(this);
+        tvSaldo.setText("🪙 " + formatSaldo(saldo));
+        tvSaldo.setTextColor(Color.WHITE);
+        tvSaldo.setTextSize(18);
+        tvSaldo.setTypeface(null, Typeface.BOLD);
+        ((LinearLayout) overlayView).addView(tvSaldo);
+
+        WindowManager.LayoutParams params = new WindowManager.LayoutParams(
+            WindowManager.LayoutParams.WRAP_CONTENT,
+            WindowManager.LayoutParams.WRAP_CONTENT,
+            WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
+            WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE |
+            WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL,
+            PixelFormat.TRANSLUCENT
+        );
+        params.gravity = Gravity.TOP | Gravity.END;
+        params.x = 16;
+        params.y = 48;
+
+        wm.addView(overlayView, params);
+    }
+
+    String formatSaldo(String s) {
+        try {
+            long n = Long.parseLong(s);
+            if (n >= 1_000_000) return (n / 1_000_000) + "M";
+            if (n >= 1_000) return (n / 1_000) + "K";
+            return String.valueOf(n);
+        } catch (Exception e) { return s; }
+    }
+
+    Notification buildNotification() {
+        NotificationChannel ch = new NotificationChannel(
+            "overlay", "Overlay", NotificationManager.IMPORTANCE_LOW);
+        ((NotificationManager) getSystemService(NOTIFICATION_SERVICE))
+            .createNotificationChannel(ch);
+        return new Notification.Builder(this, "overlay")
+            .setContentTitle("Overlay ativo")
+            .setSmallIcon(android.R.drawable.star_on)
+            .build();
+    }
+
+    @Override
+    public IBinder onBind(Intent i) { return null; }
+
+    @Override
+    public void onDestroy() {
+        if (overlayView != null) wm.removeView(overlayView);
+    }
+}
